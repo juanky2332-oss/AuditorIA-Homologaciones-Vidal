@@ -3,7 +3,8 @@ import OpenAI from "openai";
 import { AuditContext, FoodSafetyAuditReport } from "../types";
 import { TAXONOMY_PROMPT_TEXT } from "../taxonomy";
 
-const API_KEY = process.env.OPENAI_API_KEY;
+const API_KEY = import.meta.env.VITE_OPENAI_API_KEY;
+
 
 const SYSTEM_INSTRUCTION = `
 Eres IndustrIA, un auditor tecnico senior de seguridad alimentaria para uso EXCLUSIVAMENTE en Espana.
