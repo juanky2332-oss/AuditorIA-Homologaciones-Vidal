@@ -38,37 +38,39 @@ const ReportSection: React.FC<ReportSectionProps> = ({ report, materialName }) =
         const { jsPDF } = window.jspdf || {};
         const doc = new (jsPDF || (window as any).jsPDF)({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
-        const filename = `Auditoria_${(materialName || 'Material').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        const filename = `Certificado_Auditoria_${(materialName || 'Material').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
 
-        // --- Configuración de Layout ---
+        // --- Official Layout Settings ---
         const pageW = 210;
         const pageH = 297;
         const margin = 20;
         const usableW = pageW - (margin * 2);
-        let currY = 25;
+        let currY = 30;
 
-        // --- Utilidades ---
+        // --- Utilities ---
         const checkPageBreak = (neededHeight: number) => {
-            if (currY + neededHeight > pageH - margin - 15) {
+            if (currY + neededHeight > pageH - margin - 20) {
                 doc.addPage();
-                drawPageDecorations();
-                currY = 35; // Empezar debajo de la cabecera de página nueva
+                drawBordersAndFooter();
+                currY = 30;
                 return true;
             }
             return false;
         };
 
-        const drawPageDecorations = () => {
-            // Fondo suave / Marca de agua sutil o bordes si fuera necesario
-            doc.setDrawColor(230, 230, 230);
-            doc.setLineWidth(0.1);
-            doc.line(margin, 285, pageW - margin, 285); // Línea de footer
+        const drawBordersAndFooter = () => {
+            // Main page border (clean and professional)
+            doc.setDrawColor(200, 200, 200);
+            doc.setLineWidth(0.2);
+            doc.rect(10, 10, pageW - 20, pageH - 20); // Border around page
 
+            // Footer
             doc.setFontSize(8);
-            doc.setTextColor(150, 150, 150);
-            doc.text('Auditoría Técnica - IndustrIA System', margin, 290);
+            doc.setTextColor(120, 120, 120);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Este documento es un informe de auditoría generado por el sistema IndustrIA para Auditoría Vidal.', margin, pageH - 12);
             const pageCount = doc.internal.getNumberOfPages();
-            doc.text(`Página ${pageCount}`, pageW - margin - 15, 290);
+            doc.text(`Página ${pageCount}`, pageW - margin - 15, pageH - 12);
         };
 
         const addText = (text: string, fontSize = 10, variant: 'normal' | 'bold' | 'italic' = 'normal', color: [number, number, number] = [40, 40, 40], indent = 0) => {
@@ -76,138 +78,146 @@ const ReportSection: React.FC<ReportSectionProps> = ({ report, materialName }) =
             doc.setFont('helvetica', variant);
             doc.setTextColor(...color);
 
+            // Critical: Ensure text is always split to usable width
             const lines = doc.splitTextToSize(text, usableW - indent);
-            const lineHeight = fontSize * 0.5;
+            const lineHeight = fontSize * 0.55;
 
             lines.forEach((line: string) => {
                 checkPageBreak(lineHeight);
-                doc.text(line, margin + indent, currY);
+                doc.text(line.trim(), margin + indent, currY);
                 currY += lineHeight;
             });
-            currY += 2; // Espacio entre párrafos
+            currY += 2.5; // Paragraph spacing
         };
 
-        const addSectionHeader = (title: string, color: [number, number, number] = [30, 58, 138]) => {
-            currY += 4;
+        const addSectionLine = (title: string) => {
+            currY += 5;
             checkPageBreak(12);
-            doc.setFillColor(...color);
-            doc.rect(margin, currY - 6, usableW, 8, 'F');
-            doc.setFontSize(10);
+            doc.setFontSize(11);
             doc.setFont('helvetica', 'bold');
-            doc.setTextColor(255, 255, 255);
-            doc.text(title.toUpperCase(), margin + 3, currY - 0.5);
-            currY += 6;
+            doc.setTextColor(30, 58, 138); // Deep professional blue
+            doc.text(title.toUpperCase(), margin, currY);
+            currY += 2;
+            doc.setDrawColor(200, 200, 200);
+            doc.setLineWidth(0.3);
+            doc.line(margin, currY, pageW - margin, currY);
+            currY += 7;
         };
 
-        // --- Inicio de Generación ---
-        drawPageDecorations();
+        // --- Generation Start ---
+        drawBordersAndFooter();
 
-        // 1. CABECERA PRINCIPAL REFORZADA
-        doc.setFillColor(15, 23, 42); // Azul muy oscuro (profesional)
-        doc.rect(0, 0, pageW, 45, 'F');
+        // 1. TOP HEADER (The "Premium" look)
+        doc.setFillColor(248, 250, 252); // Very light grey bg for header area
+        doc.rect(10, 10, pageW - 20, 40, 'F');
+
+        doc.setFontSize(24);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(15, 23, 42);
+        doc.text('CERTIFICADO TÉCNICO', margin, 27);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Auditoría de Seguridad Alimentaria', margin, 35);
+
+        // Date and Reference on the right
+        doc.setFontSize(9);
+        doc.setTextColor(100, 116, 139);
+        doc.text(`REF: ${(materialName || 'S/N').toUpperCase()}`, pageW - margin - 60, 24, { align: 'left' });
+        doc.text(`EMITIDO: ${new Date().toLocaleDateString('es-ES')}`, pageW - margin - 60, 29);
+        doc.text(`VERSIÓN: IndustrIA v3.2 PRO`, pageW - margin - 60, 34);
+
+        currY = 60;
+
+        // 2. HOMOLOGATION STATUS BOX (Clean)
+        const score = report.homologationScore;
+        const scoreColor: [number, number, number] = score >= 80 ? [5, 150, 105] : score >= 60 ? [217, 119, 6] : [185, 28, 28];
+
+        doc.setDrawColor(...scoreColor);
+        doc.setLineWidth(0.8);
+        doc.rect(margin, currY, usableW, 20); // Box for verdict
+
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...scoreColor);
+        doc.text('ESTADO DE HOMOLOGACIÓN:', margin + 5, currY + 12);
+
+        doc.setFontSize(16);
+        doc.text(report.homologationStatus.toUpperCase(), margin + 70, currY + 12);
 
         doc.setFontSize(22);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(255, 255, 255);
-        doc.text('INFORME TÉCNICO DE AUDITORÍA', margin, 22);
+        doc.text(`${score}/100`, pageW - margin - 10, currY + 13, { align: 'right' });
 
-        doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(180, 180, 180);
-        doc.text(`MATERIAL: ${materialName || 'S/N'}`, margin, 30);
-        doc.text(`FECHA: ${new Date().toLocaleDateString('es-ES')}`, margin, 35);
+        currY += 32;
 
-        // Sello de Homologación en cabecera
-        const score = report.homologationScore;
-        const scoreColor: [number, number, number] = score >= 80 ? [52, 211, 153] : score >= 60 ? [251, 191, 36] : [248, 113, 113];
-        doc.setDrawColor(...scoreColor);
-        doc.setLineWidth(1);
-        doc.rect(pageW - margin - 35, 12, 35, 20);
-        doc.setFontSize(14);
-        doc.setTextColor(...scoreColor);
-        doc.text(`${score}/100`, pageW - margin - 26, 22, { align: 'center' });
-        doc.setFontSize(8);
-        doc.text(report.homologationStatus, pageW - margin - 17.5, 28, { align: 'center' });
+        // 3. SECTIONS
+        addSectionLine('Resumen para Dirección');
+        addText(report.plainLanguageSummary || 'Informe de auditoría técnica.', 11, 'italic', [71, 85, 105]);
 
-        currY = 55;
-
-        // 2. RESUMEN EJECUTIVO
-        addSectionHeader('Resumen Ejecutivo');
-        addText(report.plainLanguageSummary || 'Sin resumen disponible.', 11, 'italic', [60, 60, 60]);
-
-        // 3. DICTÁMENES DE SEGURIDAD ALIMENTARIA
-        addSectionHeader('Estatus de Seguridad Alimentaria');
-
-        const drawVerdictBox = (label: string, verdict: string, x: number) => {
-            const vColor: [number, number, number] = verdict === 'APTO' ? [0, 128, 0] : verdict.includes('CONDICIONADO') ? [180, 120, 0] : [200, 0, 0];
-            doc.setFontSize(8);
-            doc.setTextColor(100, 100, 100);
-            doc.text(label, x, currY);
-            doc.setFontSize(11);
+        addSectionLine('Veredictos Alimentarios');
+        const drawVerdict = (title: string, verdict: string, x: number) => {
+            const vColor: [number, number, number] = verdict === 'APTO' ? [5, 150, 105] : verdict.includes('CONDICIONADO') ? [217, 119, 6] : [185, 28, 28];
+            doc.setFontSize(9);
+            doc.setTextColor(100, 116, 139);
+            doc.text(title, x, currY);
+            doc.setFontSize(12);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(...vColor);
             doc.text(verdict, x, currY + 6);
         };
-
-        drawVerdictBox('CONTACTO DIRECTO:', report.directContactVerdict, margin);
-        drawVerdictBox('CONTACTO INDIRECTO:', report.indirectContactVerdict, margin + 85);
+        drawVerdict('CONTACTO DIRECTO:', report.directContactVerdict, margin);
+        drawVerdict('CONTACTO INDIRECTO:', report.indirectContactVerdict, margin + 80);
         currY += 15;
 
-        // 4. CLASIFICACIÓN COMERCIAL (TAXONOMÍA)
-        addSectionHeader('Clasificación en Conocimiento Corporativo');
-        addText(`Familia: ${report.productFamily} (${report.productFamilyCode})`, 10, 'bold');
+        addSectionLine('Clasificación Corporativa');
+        addText(`Familia: ${report.productFamily} (${report.productFamilyCode})`, 10, 'bold', [30, 58, 138]);
         addText(`Categoría (Gama): ${report.productGama} (${report.productGamaCode})`, 10, 'normal');
         if (report.isUncategorized) {
-            addText(`* Sugerencia: ${report.uncategorizedSuggestion}`, 9, 'italic', [200, 100, 0]);
+            addText(`Nota: ${report.uncategorizedSuggestion}`, 9, 'italic', [180, 83, 9]);
         }
-        currY += 5;
 
-        // 5. DOCUMENTACIÓN OBLIGATORIA (SI APLICA)
         if (report.requiredDocumentation && report.requiredDocumentation.length > 0) {
-            addSectionHeader('REQUERIMIENTOS BLOQUEANTES (ACCION NECESARIA)', [180, 0, 0]);
-            report.requiredDocumentation.forEach(doc => addText(`• ${doc}`, 10, 'bold', [180, 0, 0], 5));
-            currY += 5;
+            addSectionLine('Acciones Requeridas (Prioridad Alta)');
+            report.requiredDocumentation.forEach(d => addText(`• ${d}`, 10, 'bold', [185, 28, 28], 5));
         }
 
-        // 6. JUSTIFICACIÓN TÉCNICA DETALLADA
-        addSectionHeader('Justificación Técnica y Normativa');
-        addText(report.technicalJustification, 10, 'normal', [40, 40, 40]);
-        currY += 5;
+        addSectionLine('Justificación Técnica y Normativa');
+        addText(report.technicalJustification, 10, 'normal', [51, 65, 85]);
 
-        // 7. RIESGOS Y RECOMENDACIONES
         if (report.detectedRisks.length > 0) {
-            addSectionHeader('Riesgos Técnicos Detectados', [150, 50, 50]);
-            report.detectedRisks.forEach(r => addText(`! ${r}`, 9, 'normal', [150, 0, 0], 5));
-        }
-
-        if (report.missingDocumentation.length > 0) {
-            addSectionHeader('Documentación de Apoyo Recomendada');
-            report.missingDocumentation.forEach(d => addText(`- ${d}`, 9, 'normal', [80, 80, 80], 5));
+            addSectionLine('Riesgos Identificados');
+            report.detectedRisks.forEach(r => addText(`[ALERTA] ${r}`, 9, 'normal', [153, 27, 27], 5));
         }
 
         if (report.recommendations.length > 0) {
-            addSectionHeader('Recomendaciones de Mejora', [30, 128, 60]);
-            report.recommendations.forEach(r => addText(`✓ ${r}`, 9, 'normal', [0, 100, 0], 5));
+            addSectionLine('Recomendaciones de Mejora');
+            report.recommendations.forEach(r => addText(`✓ ${r}`, 9, 'normal', [21, 128, 61], 5));
         }
 
-        // 8. REFERENCIAS NORMATIVAS
         if (report.normativeReferences && report.normativeReferences.length > 0) {
-            addSectionHeader('Marco Normativo Aplicable (España/UE)');
-            addText(report.normativeReferences.join(' | '), 9, 'normal', [100, 100, 100]);
+            addSectionLine('Marco Normativo');
+            addText(report.normativeReferences.join(' | '), 9, 'normal', [100, 116, 139]);
         }
 
-        // 9. CONCLUSIÓN FINAL
+        // Final Conclusion Stamp
         currY += 10;
-        checkPageBreak(25);
+        checkPageBreak(30);
+        doc.setFillColor(241, 245, 249);
+        doc.rect(margin, currY, usableW, 25, 'F');
         doc.setDrawColor(30, 58, 138);
         doc.setLineWidth(0.5);
-        doc.rect(margin, currY, usableW, 20);
-        doc.setFontSize(11);
+        doc.rect(margin, currY, usableW, 25);
+
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(30, 58, 138);
-        const conclusionLines = doc.splitTextToSize(`DICTAMEN FINAL: ${report.finalConclusion}`, usableW - 10);
-        conclusionLines.forEach((line: string, i: number) => {
-            doc.text(line, margin + 5, currY + 8 + (i * 6));
+        doc.text('CONCLUSIÓN FINAL DEL AUDITOR:', margin + 5, currY + 8);
+
+        const concLines = doc.splitTextToSize(report.finalConclusion, usableW - 10);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(15, 23, 42);
+        concLines.forEach((l: string, i: number) => {
+            doc.text(l, margin + 5, currY + 15 + (i * 6));
         });
 
         doc.save(filename);
