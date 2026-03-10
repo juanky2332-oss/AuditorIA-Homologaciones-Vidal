@@ -156,6 +156,11 @@ Responde SOLO con el JSON en ESPAÑOL.`
 
   } catch (error: any) {
     console.error("IndustrIA Error:", error);
+
+    if (error.message.includes("Failed to fetch") || error.message.includes("NetworkError")) {
+      throw new Error("Error de conexión con el servidor. Es posible que los archivos sean demasiado grandes para la nube de Vercel (límite 4.5MB). Intenta con imágenes más pequeñas o menos archivos.");
+    }
+
     throw new Error(error?.message || "Error en el servicio de auditoría.");
   }
 };

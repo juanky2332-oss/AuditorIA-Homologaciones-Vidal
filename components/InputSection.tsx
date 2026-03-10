@@ -69,17 +69,42 @@ const InputSection: React.FC<InputSectionProps> = ({ onAnalyze, isLoading }) => 
 
   const removeFile = (idx: number) => setFiles(prev => prev.filter((_, i) => i !== idx));
 
-  const imageToFileData = (file: File): Promise<FileData> =>
-    new Promise((resolve, reject) => {
+  const compressImage = (file: File, maxWidth = 1200, quality = 0.7): Promise<FileData> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          resolve({ name: file.name, mimeType: file.type, data: reader.result.split(',')[1] });
-        } else reject(new Error('Error convirtiendo imagen'));
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          // Redimensionar si es más grande que el máximo
+          if (width > maxWidth) {
+            height = (maxWidth / width) * height;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          // Comprimir a JPEG
+          const dataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve({
+            name: file.name,
+            mimeType: 'image/jpeg',
+            data: dataUrl.split(',')[1]
+          });
+        };
+        img.onerror = reject;
       };
       reader.onerror = reject;
     });
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,41 +113,52 @@ const InputSection: React.FC<InputSectionProps> = ({ onAnalyze, isLoading }) => 
     setIsParsing(true);
     const filesData: FileData[] = [];
 
+    let totalEstimatedSize = 0;
+
     for (const file of files) {
       try {
         if (file.type === 'application/pdf') {
-          setParseStatus(`Leyendo: ${file.name}...`);
+          setParseStatus(`Extrayendo texto de: ${file.name}...`);
           const text = await extractTextFromPdf(file);
 
           if (text && text.trim().length > 20) {
-            // PDF con texto extraíble — enviamos el contenido completo
-            filesData.push({
-              name: file.name,
-              mimeType: 'text/plain',
-              data: text
-            });
+            const entry = { name: file.name, mimeType: 'text/plain', data: text };
+            totalEstimatedSize += text.length;
+            filesData.push(entry);
           } else {
-            // PDF escaneado sin capa de texto — avisamos a la IA del nombre del archivo
-            filesData.push({
+            const entry = {
               name: file.name,
               mimeType: 'text/plain',
-              data: `[DOCUMENTO: ${file.name}]\nEste PDF es un documento escaneado sin capa de texto. Analiza basándote en el nombre del archivo y los datos introducidos manualmente. Si el nombre indica un material o producto específico, aplica tu conocimiento técnico sobre ese material.`
-            });
+              data: `[DOCUMENTO: ${file.name}]\nEste PDF es un documento escaneado sin capa de texto. Analiza basándote en el nombre del archivo y los datos introducidos manualmente.`
+            };
+            totalEstimatedSize += entry.data.length;
+            filesData.push(entry);
           }
         } else if (file.type.startsWith('image/')) {
-          setParseStatus(`Procesando imagen: ${file.name}...`);
-          const fd = await imageToFileData(file);
+          setParseStatus(`Comprimiendo imagen: ${file.name}...`);
+          // Compresion agresiva para asegurar que pase por Vercel
+          const fd = await compressImage(file, 1024, 0.6);
+          totalEstimatedSize += fd.data.length;
           filesData.push(fd);
         }
       } catch (err) {
         console.error(`Error procesando ${file.name}:`, err);
-        // Aunque falle la extracción, incluimos al menos el nombre del archivo para que la IA lo tenga en cuenta
         filesData.push({
           name: file.name,
           mimeType: 'text/plain',
-          data: `[DOCUMENTO ADJUNTO: ${file.name}]\nNo se pudo extraer el texto automáticamente. Basa el análisis en el nombre del archivo y los datos introducidos manualmente.`
+          data: `[DOCUMENTO ADJUNTO: ${file.name}]\nError en extracción. Analizar vía nombre.`
         });
       }
+    }
+
+    // Vercel limit is 4.5MB. Base64 is ~33% larger than original.
+    // 4.5MB / 1.33 = ~3.3MB limit for strings. Let's be safe at 3MB.
+    const LIMIT = 3 * 1024 * 1024;
+    if (totalEstimatedSize > LIMIT) {
+      alert(`Los archivos son demasiado grandes (${(totalEstimatedSize / 1024 / 1024).toFixed(1)} MB). Por favor, sube menos archivos o imágenes más pequeñas.`);
+      setIsParsing(false);
+      setParseStatus('');
+      return;
     }
 
     setIsParsing(false);
@@ -183,8 +219,8 @@ const InputSection: React.FC<InputSectionProps> = ({ onAnalyze, isLoading }) => 
               onDrop={onDrop}
               onClick={() => fileInputRef.current?.click()}
               className={`relative h-48 border-2 border-dashed rounded-xl flex flex-col items-center justify-center cursor-pointer overflow-hidden transition-all duration-300 group ${isDragging
-                  ? 'border-blue-400 bg-blue-900/10'
-                  : 'border-slate-600 bg-slate-800/30 hover:border-slate-500 hover:bg-slate-800/50'
+                ? 'border-blue-400 bg-blue-900/10'
+                : 'border-slate-600 bg-slate-800/30 hover:border-slate-500 hover:bg-slate-800/50'
                 }`}
             >
               <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".pdf,image/*" className="hidden" multiple />
@@ -237,8 +273,8 @@ const InputSection: React.FC<InputSectionProps> = ({ onAnalyze, isLoading }) => 
             type="submit"
             disabled={isButtonDisabled}
             className={`w-full py-4 rounded-lg font-bold tracking-widest text-sm uppercase transition-all duration-300 shadow-lg ${isButtonDisabled
-                ? 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
-                : 'bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/50 hover:shadow-blue-500/20'
+              ? 'bg-slate-800 text-slate-600 cursor-not-allowed border border-slate-700'
+              : 'bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/50 hover:shadow-blue-500/20'
               }`}
           >
             {isParsing ? `⏳ ${parseStatus || 'PROCESANDO DOCUMENTOS...'}` : 'INICIAR AUDITORÍA TÉCNICA'}
