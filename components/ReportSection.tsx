@@ -34,217 +34,181 @@ const ReportSection: React.FC<ReportSectionProps> = ({ report, materialName }) =
 
     // ─── PDF generado programáticamente con jsPDF ────────────────────────────
     const handleDownloadPDF = () => {
-        // jsPDF está incluido en la librería html2pdf que se carga en index.html
         // @ts-ignore
         const { jsPDF } = window.jspdf || {};
-        if (!jsPDF) {
-            // Fallback: intentar con window.jsPDF directo
-            // @ts-ignore
-            if (!window.jsPDF) {
-                alert("Error: librería PDF no disponible. Refresque la página.");
-                return;
-            }
-        }
-
-        // @ts-ignore
-        const doc = new (jsPDF || window.jsPDF)({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+        const doc = new (jsPDF || (window as any).jsPDF)({ unit: 'mm', format: 'a4', orientation: 'portrait' });
 
         const filename = `Auditoria_${(materialName || 'Material').replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
-        const pageW = 210;
-        const marginL = 12;
-        const marginR = 12;
-        const usableW = pageW - marginL - marginR;
-        let y = 15;
 
-        const addLine = (text: string, size = 10, bold = false, color: [number, number, number] = [30, 30, 30]) => {
-            doc.setFontSize(size);
-            doc.setFont('helvetica', bold ? 'bold' : 'normal');
-            doc.setTextColor(...color);
-            const lines = doc.splitTextToSize(text, usableW);
-            lines.forEach((line: string) => {
-                if (y > 280) { doc.addPage(); y = 15; }
-                doc.text(line, marginL, y);
-                y += size * 0.45;
-            });
-            y += 2;
+        // --- Configuración de Layout ---
+        const pageW = 210;
+        const pageH = 297;
+        const margin = 20;
+        const usableW = pageW - (margin * 2);
+        let currY = 25;
+
+        // --- Utilidades ---
+        const checkPageBreak = (neededHeight: number) => {
+            if (currY + neededHeight > pageH - margin - 15) {
+                doc.addPage();
+                drawPageDecorations();
+                currY = 35; // Empezar debajo de la cabecera de página nueva
+                return true;
+            }
+            return false;
         };
 
-        const addSectionHeader = (title: string, r: number, g: number, b: number) => {
-            if (y > 270) { doc.addPage(); y = 15; }
-            doc.setFillColor(r, g, b);
-            doc.rect(marginL, y - 4, usableW, 7, 'F');
-            doc.setFontSize(9);
+        const drawPageDecorations = () => {
+            // Fondo suave / Marca de agua sutil o bordes si fuera necesario
+            doc.setDrawColor(230, 230, 230);
+            doc.setLineWidth(0.1);
+            doc.line(margin, 285, pageW - margin, 285); // Línea de footer
+
+            doc.setFontSize(8);
+            doc.setTextColor(150, 150, 150);
+            doc.text('Auditoría Técnica - IndustrIA System', margin, 290);
+            const pageCount = doc.internal.getNumberOfPages();
+            doc.text(`Página ${pageCount}`, pageW - margin - 15, 290);
+        };
+
+        const addText = (text: string, fontSize = 10, variant: 'normal' | 'bold' | 'italic' = 'normal', color: [number, number, number] = [40, 40, 40], indent = 0) => {
+            doc.setFontSize(fontSize);
+            doc.setFont('helvetica', variant);
+            doc.setTextColor(...color);
+
+            const lines = doc.splitTextToSize(text, usableW - indent);
+            const lineHeight = fontSize * 0.5;
+
+            lines.forEach((line: string) => {
+                checkPageBreak(lineHeight);
+                doc.text(line, margin + indent, currY);
+                currY += lineHeight;
+            });
+            currY += 2; // Espacio entre párrafos
+        };
+
+        const addSectionHeader = (title: string, color: [number, number, number] = [30, 58, 138]) => {
+            currY += 4;
+            checkPageBreak(12);
+            doc.setFillColor(...color);
+            doc.rect(margin, currY - 6, usableW, 8, 'F');
+            doc.setFontSize(10);
             doc.setFont('helvetica', 'bold');
             doc.setTextColor(255, 255, 255);
-            doc.text(title.toUpperCase(), marginL + 2, y);
-            y += 7;
-            doc.setTextColor(30, 30, 30);
+            doc.text(title.toUpperCase(), margin + 3, currY - 0.5);
+            currY += 6;
         };
 
-        const addDivider = () => {
-            doc.setDrawColor(200, 200, 200);
-            doc.line(marginL, y, pageW - marginR, y);
-            y += 4;
-        };
+        // --- Inicio de Generación ---
+        drawPageDecorations();
 
-        // ── CABECERA ──
-        doc.setFillColor(15, 23, 42);
-        doc.rect(0, 0, 210, 297, 'F');
+        // 1. CABECERA PRINCIPAL REFORZADA
+        doc.setFillColor(15, 23, 42); // Azul muy oscuro (profesional)
+        doc.rect(0, 0, pageW, 45, 'F');
 
-        doc.setFillColor(30, 41, 59);
-        doc.rect(marginL, y - 5, usableW, 22, 'F');
-        doc.setFontSize(14);
+        doc.setFontSize(22);
         doc.setFont('helvetica', 'bold');
-        doc.setTextColor(241, 245, 249);
-        doc.text('INFORME TECNICO DE AUDITORIA', marginL + 3, y + 3);
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(148, 163, 184);
-        doc.text(`Material: ${materialName || 'S/N'}   |   Fecha: ${new Date().toLocaleDateString('es-ES')}   |   IndustrIA v3.2`, marginL + 3, y + 9);
-        doc.text('Normativa aplicable: Reglamento CE 1935/2004 | UE 10/2011 | ISO 22000 | Solo Espana / UE', marginL + 3, y + 14);
-        y += 25;
+        doc.setTextColor(255, 255, 255);
+        doc.text('INFORME TÉCNICO DE AUDITORÍA', margin, 22);
 
-        // Score de homologación
-        const scoreColor: [number, number, number] = report.homologationScore >= 80 ? [52, 211, 153] : report.homologationScore >= 60 ? [251, 191, 36] : [248, 113, 113];
-        doc.setFontSize(18);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...scoreColor);
-        doc.text(`${report.homologationScore}/100`, pageW - marginR - 25, 22);
-        doc.setFontSize(8);
-        doc.setTextColor(148, 163, 184);
-        doc.text(report.homologationStatus, pageW - marginR - 23, 28);
-
-        // ── RESUMEN EN LENGUAJE LLANO ──
-        if (report.plainLanguageSummary) {
-            doc.setFillColor(30, 41, 59);
-            doc.rect(marginL, y - 3, usableW, 3, 'F');
-            addSectionHeader('Resumen para el responsable de compras', 30, 64, 175);
-            doc.setFontSize(10);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(220, 230, 240);
-            const summaryLines = doc.splitTextToSize(report.plainLanguageSummary, usableW);
-            summaryLines.forEach((l: string) => { doc.text(l, marginL, y); y += 5; });
-            y += 4;
-        }
-
-        // ── VEREDICTOS ──
-        addSectionHeader('Veredictos de Seguridad Alimentaria', 15, 23, 42);
-
-        const verdictColors: Record<string, [number, number, number]> = {
-            'APTO': [52, 211, 153],
-            'APTO CONDICIONADO': [251, 191, 36],
-            'NO APTO': [248, 113, 113],
-            'NO APLICA': [148, 163, 184]
-        };
-
-        const dColor = verdictColors[report.directContactVerdict] || [148, 163, 184];
-        const iColor = verdictColors[report.indirectContactVerdict] || [148, 163, 184];
-
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(148, 163, 184);
-        doc.text('CONTACTO DIRECTO CON ALIMENTO:', marginL, y);
-        doc.setTextColor(...dColor);
-        doc.text(report.directContactVerdict, marginL + 70, y);
-        y += 6;
-
-        doc.setTextColor(148, 163, 184);
-        doc.text('CONTACTO INDIRECTO (ENTORNO FABRICA):', marginL, y);
-        doc.setTextColor(...iColor);
-        doc.text(report.indirectContactVerdict, marginL + 70, y);
-        y += 6;
-
-        doc.setTextColor(148, 163, 184);
-        doc.text('CLASIFICACION COMERCIAL:', marginL, y);
-        doc.setTextColor(147, 197, 253);
-        doc.text(`${report.productGama} (${report.productFamilyCode})`, marginL + 70, y);
-        y += 8;
-
-        // ── DOCUMENTACIÓN OBLIGATORIA (solo si CONDICIONADO) ──
-        if (report.requiredDocumentation && report.requiredDocumentation.length > 0) {
-            addSectionHeader('DOCUMENTACION OBLIGATORIA ANTES DE COMPRAR', 127, 29, 29);
-            doc.setFontSize(9);
-            report.requiredDocumentation.forEach((d) => {
-                doc.setTextColor(252, 165, 165);
-                const ls = doc.splitTextToSize(`• ${d}`, usableW - 4);
-                ls.forEach((l: string) => { if (y > 280) { doc.addPage(); y = 15; } doc.text(l, marginL + 2, y); y += 5; });
-            });
-            y += 3;
-        }
-
-        // ── JUSTIFICACIÓN TÉCNICA ──
-        addSectionHeader('Justificacion Tecnica', 30, 58, 138);
-        doc.setFontSize(9);
-        doc.setTextColor(200, 215, 235);
-        const justLines = doc.splitTextToSize(report.technicalJustification, usableW - 4);
-        justLines.forEach((l: string) => { if (y > 280) { doc.addPage(); y = 15; } doc.text(l, marginL + 2, y); y += 5; });
-        y += 3;
-
-        // ── RIESGOS ──
-        if (report.detectedRisks && report.detectedRisks.length > 0) {
-            addSectionHeader('Riesgos Detectados', 127, 29, 29);
-            doc.setFontSize(9);
-            report.detectedRisks.forEach((r) => {
-                doc.setTextColor(252, 165, 165);
-                const ls = doc.splitTextToSize(`• ${r}`, usableW - 4);
-                ls.forEach((l: string) => { if (y > 280) { doc.addPage(); y = 15; } doc.text(l, marginL + 2, y); y += 5; });
-            });
-            y += 3;
-        }
-
-        // ── DOCS RECOMENDADAS ──
-        if (report.missingDocumentation && report.missingDocumentation.length > 0) {
-            addSectionHeader('Documentacion Recomendada para el Expediente', 120, 80, 0);
-            doc.setFontSize(9);
-            report.missingDocumentation.forEach((d) => {
-                doc.setTextColor(253, 230, 138);
-                const ls = doc.splitTextToSize(`• ${d}`, usableW - 4);
-                ls.forEach((l: string) => { if (y > 280) { doc.addPage(); y = 15; } doc.text(l, marginL + 2, y); y += 5; });
-            });
-            y += 3;
-        }
-
-        // ── RECOMENDACIONES ──
-        if (report.recommendations && report.recommendations.length > 0) {
-            addSectionHeader('Recomendaciones', 6, 78, 59);
-            doc.setFontSize(9);
-            report.recommendations.forEach((r) => {
-                doc.setTextColor(167, 243, 208);
-                const ls = doc.splitTextToSize(`✓ ${r}`, usableW - 4);
-                ls.forEach((l: string) => { if (y > 280) { doc.addPage(); y = 15; } doc.text(l, marginL + 2, y); y += 5; });
-            });
-            y += 3;
-        }
-
-        // ── NORMATIVAS ──
-        if (report.normativeReferences && report.normativeReferences.length > 0) {
-            addSectionHeader('Normativa Aplicable (Espana / UE)', 64, 30, 138);
-            doc.setFontSize(9);
-            doc.setTextColor(216, 180, 254);
-            const normText = report.normativeReferences.join('  ·  ');
-            const normLines = doc.splitTextToSize(normText, usableW - 4);
-            normLines.forEach((l: string) => { if (y > 280) { doc.addPage(); y = 15; } doc.text(l, marginL + 2, y); y += 5; });
-            y += 3;
-        }
-
-        // ── DICTAMEN FINAL ──
-        addSectionHeader('Dictamen Final del Auditor', 23, 37, 84);
         doc.setFontSize(10);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(241, 245, 249);
-        const finalLines = doc.splitTextToSize(report.finalConclusion, usableW - 4);
-        finalLines.forEach((l: string) => { if (y > 280) { doc.addPage(); y = 15; } doc.text(l, marginL + 2, y); y += 6; });
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(180, 180, 180);
+        doc.text(`MATERIAL: ${materialName || 'S/N'}`, margin, 30);
+        doc.text(`FECHA: ${new Date().toLocaleDateString('es-ES')}`, margin, 35);
 
-        // ── FOOTER ──
-        const totalPages = doc.getNumberOfPages();
-        for (let i = 1; i <= totalPages; i++) {
-            doc.setPage(i);
-            doc.setFontSize(7);
-            doc.setFont('helvetica', 'normal');
-            doc.setTextColor(71, 85, 105);
-            doc.text('IndustrIA · Sistema de Auditoria de Seguridad Alimentaria · Uso interno · Normativa Espana / UE', marginL, 290);
-            doc.text(`Pagina ${i} de ${totalPages}`, pageW - marginR - 20, 290);
+        // Sello de Homologación en cabecera
+        const score = report.homologationScore;
+        const scoreColor: [number, number, number] = score >= 80 ? [52, 211, 153] : score >= 60 ? [251, 191, 36] : [248, 113, 113];
+        doc.setDrawColor(...scoreColor);
+        doc.setLineWidth(1);
+        doc.rect(pageW - margin - 35, 12, 35, 20);
+        doc.setFontSize(14);
+        doc.setTextColor(...scoreColor);
+        doc.text(`${score}/100`, pageW - margin - 26, 22, { align: 'center' });
+        doc.setFontSize(8);
+        doc.text(report.homologationStatus, pageW - margin - 17.5, 28, { align: 'center' });
+
+        currY = 55;
+
+        // 2. RESUMEN EJECUTIVO
+        addSectionHeader('Resumen Ejecutivo');
+        addText(report.plainLanguageSummary || 'Sin resumen disponible.', 11, 'italic', [60, 60, 60]);
+
+        // 3. DICTÁMENES DE SEGURIDAD ALIMENTARIA
+        addSectionHeader('Estatus de Seguridad Alimentaria');
+
+        const drawVerdictBox = (label: string, verdict: string, x: number) => {
+            const vColor: [number, number, number] = verdict === 'APTO' ? [0, 128, 0] : verdict.includes('CONDICIONADO') ? [180, 120, 0] : [200, 0, 0];
+            doc.setFontSize(8);
+            doc.setTextColor(100, 100, 100);
+            doc.text(label, x, currY);
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'bold');
+            doc.setTextColor(...vColor);
+            doc.text(verdict, x, currY + 6);
+        };
+
+        drawVerdictBox('CONTACTO DIRECTO:', report.directContactVerdict, margin);
+        drawVerdictBox('CONTACTO INDIRECTO:', report.indirectContactVerdict, margin + 85);
+        currY += 15;
+
+        // 4. CLASIFICACIÓN COMERCIAL (TAXONOMÍA)
+        addSectionHeader('Clasificación en Conocimiento Corporativo');
+        addText(`Familia: ${report.productFamily} (${report.productFamilyCode})`, 10, 'bold');
+        addText(`Categoría (Gama): ${report.productGama} (${report.productGamaCode})`, 10, 'normal');
+        if (report.isUncategorized) {
+            addText(`* Sugerencia: ${report.uncategorizedSuggestion}`, 9, 'italic', [200, 100, 0]);
         }
+        currY += 5;
+
+        // 5. DOCUMENTACIÓN OBLIGATORIA (SI APLICA)
+        if (report.requiredDocumentation && report.requiredDocumentation.length > 0) {
+            addSectionHeader('REQUERIMIENTOS BLOQUEANTES (ACCION NECESARIA)', [180, 0, 0]);
+            report.requiredDocumentation.forEach(doc => addText(`• ${doc}`, 10, 'bold', [180, 0, 0], 5));
+            currY += 5;
+        }
+
+        // 6. JUSTIFICACIÓN TÉCNICA DETALLADA
+        addSectionHeader('Justificación Técnica y Normativa');
+        addText(report.technicalJustification, 10, 'normal', [40, 40, 40]);
+        currY += 5;
+
+        // 7. RIESGOS Y RECOMENDACIONES
+        if (report.detectedRisks.length > 0) {
+            addSectionHeader('Riesgos Técnicos Detectados', [150, 50, 50]);
+            report.detectedRisks.forEach(r => addText(`! ${r}`, 9, 'normal', [150, 0, 0], 5));
+        }
+
+        if (report.missingDocumentation.length > 0) {
+            addSectionHeader('Documentación de Apoyo Recomendada');
+            report.missingDocumentation.forEach(d => addText(`- ${d}`, 9, 'normal', [80, 80, 80], 5));
+        }
+
+        if (report.recommendations.length > 0) {
+            addSectionHeader('Recomendaciones de Mejora', [30, 128, 60]);
+            report.recommendations.forEach(r => addText(`✓ ${r}`, 9, 'normal', [0, 100, 0], 5));
+        }
+
+        // 8. REFERENCIAS NORMATIVAS
+        if (report.normativeReferences && report.normativeReferences.length > 0) {
+            addSectionHeader('Marco Normativo Aplicable (España/UE)');
+            addText(report.normativeReferences.join(' | '), 9, 'normal', [100, 100, 100]);
+        }
+
+        // 9. CONCLUSIÓN FINAL
+        currY += 10;
+        checkPageBreak(25);
+        doc.setDrawColor(30, 58, 138);
+        doc.setLineWidth(0.5);
+        doc.rect(margin, currY, usableW, 20);
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(30, 58, 138);
+        const conclusionLines = doc.splitTextToSize(`DICTAMEN FINAL: ${report.finalConclusion}`, usableW - 10);
+        conclusionLines.forEach((line: string, i: number) => {
+            doc.text(line, margin + 5, currY + 8 + (i * 6));
+        });
 
         doc.save(filename);
     };
